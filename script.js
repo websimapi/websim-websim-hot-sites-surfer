@@ -1,25 +1,40 @@
 const iframe = document.getElementById('websim-frame');
 const websimHomeUrl = 'https://websim.com';
 const oneMinute = 60 * 1000;
+const siteDisplayDuration = oneMinute;
 
 let scrollInterval;
+let siteQueue = [];
 
-async function fetchHotSite() {
+async function populateSiteQueue() {
+  console.log('Fetching 100 hot sites...');
   try {
-    const response = await fetch('/api/v1/feed/trending?feed=hot&limit=1');
+    const response = await fetch('/api/v1/feed/trending?feed=hot&limit=100');
     if (!response.ok) {
       console.error('Failed to fetch trending sites:', response.status, response.statusText);
-      return null;
+      return;
     }
     const { feed } = await response.json();
     if (feed.data && feed.data.length > 0) {
-      const site = feed.data[0].site;
-      return `https://websim.com/c/${site.id}`;
+      const newSites = feed.data.map(item => ({
+          id: item.site.id,
+          url: `https://websim.com/c/${item.site.id}`
+      }));
+
+      // Simple shuffle to randomize the order
+      for (let i = newSites.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newSites[i], newSites[j]] = [newSites[j], newSites[i]];
+      }
+
+      siteQueue = newSites;
+      console.log(`Populated queue with ${siteQueue.length} sites.`);
+    } else {
+        console.log('No sites returned from API.');
     }
   } catch (error) {
-    console.error('Error fetching hot site:', error);
+    console.error('Error fetching hot sites:', error);
   }
-  return null;
 }
 
 function startScrolling() {
@@ -34,24 +49,26 @@ function startScrolling() {
 }
 
 async function surf() {
-  console.log('Fetching a new hot site...');
-  const hotSiteUrl = await fetchHotSite();
-
-  if (hotSiteUrl) {
-    console.log(`Navigating to ${hotSiteUrl}`);
-    iframe.src = hotSiteUrl;
-
-    setTimeout(() => {
-      console.log(`Navigating back to ${websimHomeUrl}`);
-      iframe.src = websimHomeUrl;
-      // Restart the surf cycle
+  if (siteQueue.length === 0) {
+    console.log('Site queue is empty. Fetching new list.');
+    await populateSiteQueue();
+    if (siteQueue.length === 0) {
+      console.log('Failed to populate site queue. Retrying in 1 minute.');
       setTimeout(surf, oneMinute);
-    }, oneMinute);
-  } else {
-    // If fetching failed, just try again after a minute.
-    console.log('Failed to get a hot site, will try again.');
-    setTimeout(surf, oneMinute);
+      return;
+    }
   }
+  
+  const site = siteQueue.pop();
+  console.log(`Navigating to ${site.url}. ${siteQueue.length} sites remaining in queue.`);
+  iframe.src = site.url;
+
+  setTimeout(() => {
+    console.log(`Navigating back to ${websimHomeUrl}`);
+    iframe.src = websimHomeUrl;
+    // Restart the surf cycle
+    setTimeout(surf, oneMinute);
+  }, siteDisplayDuration);
 }
 
 // Initial setup
@@ -60,6 +77,5 @@ iframe.onload = () => {
     startScrolling();
 };
 
-// Start the first cycle a minute after the page loads.
-setTimeout(surf, oneMinute);
-
+// Start the first cycle.
+surf();
