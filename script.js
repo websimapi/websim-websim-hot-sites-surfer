@@ -63,12 +63,8 @@ async function surf() {
   console.log(`Navigating to ${site.url}. ${siteQueue.length} sites remaining in queue.`);
   iframe.src = site.url;
 
-  setTimeout(() => {
-    console.log(`Navigating back to ${websimHomeUrl}`);
-    iframe.src = websimHomeUrl;
-    // Restart the surf cycle
-    setTimeout(surf, oneMinute);
-  }, siteDisplayDuration);
+  // After the display duration, move to the next site.
+  setTimeout(surf, siteDisplayDuration);
 }
 
 // Initial setup
